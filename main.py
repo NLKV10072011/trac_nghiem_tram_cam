@@ -112,4 +112,4 @@ with st.sidebar:
         st.write("Matplotlib library is not available. Please install it to view the graphs.")
 
 # Bản quyền
-st.write('[© Bản quyền thuộc về Ngvan](https://www.facebook.com/profile.php?id=100073017864297) <a href="https://www.facebook.com/profile.php?id=100073017864297" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" width="20"></a>', unsafe_allow_html=True)
+st.write('[© 2024 - Bản quyền thuộc về Ngvan](https://www.facebook.com/profile.php?id=100073017864297) <a href="https://www.facebook.com/profile.php?id=100073017864297" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" width="20"></a>', unsafe_allow_html=True)
