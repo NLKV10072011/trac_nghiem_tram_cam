@@ -1,14 +1,9 @@
 import streamlit as st
 import sqlite3
 from datetime import datetime
-import matplotlib.pyplot as plt
-from collections import Counter
-
-# Try to import matplotlib and handle the error if it fails
-try:
-    import matplotlib.pyplot as plt
-except ModuleNotFoundError:
-    st.error("Matplotlib library is not installed. Please install it to view the graphs.")
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Cấu hình trang
 st.set_page_config(page_title="Trắc nghiệm trầm cảm", page_icon=":thought_balloon:", layout="wide")
@@ -20,9 +15,10 @@ st.write("Học viên: Kiến Văn")
 # Kết nối cơ sở dữ liệu
 conn = sqlite3.connect('results.db')
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS results (name TEXT, date TEXT, level TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS results (name TEXT, date TEXT, level TEXT, email TEXT)''')
 
 ten = st.text_input("Họ và tên:")
+email = st.text_input("Email của bạn:")
 st.write("Xin chào,", ten)
 
 # Các mức độ cảm xúc
@@ -30,100 +26,84 @@ Muc_do_cx = {
     "Rất tốt": "Bạn đang có trạng thái tinh thần rất ổn định và tích cực. Hãy tiếp tục duy trì điều này!",
     "Bình thường": "Bạn có một trạng thái tinh thần trung bình. Hãy chăm sóc bản thân và cân nhắc thư giãn thêm.",
     "Căng thẳng nhẹ": "Bạn có dấu hiệu căng thẳng nhẹ. Thử nghỉ ngơi, tập thể dục hoặc trò chuyện với bạn bè.",
-    "Căng thẳng nặng":  "Bạn có thể đang chịu áp lực lớn. Hãy tìm cách giảm bớt công việc và chăm sóc sức khỏe tinh thần.",
-    "Buồn bã, tuyệt vọng": "Bạn có dấu hiệu trầm cảm nghiêm trọng. Hãy tìm đến sự hỗ trợ từ người thân hoặc chuyên gia tâm lý."
+    "Căng thẳng nặng": "Bạn có thể đang chịu áp lực lớn. Hãy tìm cách giảm bớt công việc và chăm sóc sức khỏe tinh thần.",
+    "Buồn bã, tuyệt vọng": "Bạn có dấu hiệu trầm cảm nghiêm trọng. Hãy tìm đến sự hỗ trợ từ người thân hoặc chuyên gia tâm lý.",
+    "Vui vẻ": "Bạn đang trong trạng thái rất vui vẻ và hạnh phúc!"
 }
 
-# Tạo cột cho các mức lựa chọn
-col1, col2, col3, col4, col5 = st.columns(5)
+# Câu hỏi trắc nghiệm và các lựa chọn
+questions = [
+    "Trong tuần qua, bạn cảm thấy tinh thần của mình như thế nào?",
+    "Trong tuần qua, bạn có cảm thấy căng thẳng, mệt mỏi không?",
+    "Bạn có cảm thấy cuộc sống có ý nghĩa và mục đích không?",
+    "Bạn có dễ dàng cảm thấy hạnh phúc hoặc vui vẻ không?"
+]
 
-with col1:
-    b1 = st.button("Rất tốt")
-with col2:
-    b2 = st.button("Bình thường")
-with col3:
-    b3 = st.button("Căng thẳng nhẹ")
-with col4:
-    b4 = st.button("Căng thẳng nặng")
-with col5:
-    b5 = st.button("Buồn bã, tuyệt vọng")
+# Câu trả lời tương ứng với mỗi câu hỏi
+answers = [
+    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
+    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
+    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
+    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"]
+]
 
-# Hiển thị kết quả
-if b1:
-    with st.expander("Rất tốt"):
-        st.write(":smile: " + Muc_do_cx["Rất tốt"])
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (ten, str(datetime.now()), "Rất tốt"))
+# Hiển thị các câu hỏi và lựa chọn
+responses = []
+for idx, question in enumerate(questions):
+    response = st.radio(question, answers[idx])
+    responses.append(response)
+
+# Hàm gửi email
+def send_email(recipient_email, subject, body):
+    sender_email = "your_email@gmail.com"  # Thay bằng email của bạn
+    sender_password = "your_app_password"  # Mật khẩu ứng dụng nếu có bật xác thực 2 bước
+    
+    # Cấu hình thư
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+    
+    # Thêm nội dung email
+    msg.attach(MIMEText(body, 'plain'))
+    
+    # Gửi email qua SMTP server của Gmail
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.quit()
+        print("Email đã được gửi thành công!")
+    except Exception as e:
+        print(f"Lỗi khi gửi email: {e}")
+
+# Gửi kết quả trắc nghiệm qua email
+def send_test_results(email, name, responses):
+    subject = f"Kết quả trắc nghiệm trầm cảm của {name}"
+    body = f"Chào {name},\n\nKết quả trắc nghiệm trầm cảm của bạn:\n"
+    for idx, response in enumerate(responses):
+        body += f"- Câu hỏi {idx+1}: {response}\n"
+    body += "\nCảm ơn bạn đã tham gia!"
+    send_email(email, subject, body)
+
+# Khi người dùng hoàn thành trắc nghiệm, hiển thị kết quả và gửi email
+if st.button("Gửi kết quả"):
+    if ten and email:
+        # Lưu kết quả vào cơ sở dữ liệu
+        c.execute("INSERT INTO results (name, date, level, email) VALUES (?, ?, ?, ?)", (ten, str(datetime.now()), str(responses), email))
         conn.commit()
-if b2:
-    with st.expander("Bình thường"):
-        st.write(":neutral_face: " + Muc_do_cx["Bình thường"])
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (ten, str(datetime.now()), "Bình thường"))
-        conn.commit()
-if b3:
-    with st.expander("Căng thẳng nhẹ"):
-        st.write(":worried: " + Muc_do_cx["Căng thẳng nhẹ"])
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (ten, str(datetime.now()), "Căng thẳng nhẹ"))
-        conn.commit()
-if b4:
-    with st.expander("Căng thẳng nặng"):
-        st.write(":anguished: " + Muc_do_cx["Căng thẳng nặng"])
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (ten, str(datetime.now()), "Căng thẳng nặng"))
-        conn.commit()
-if b5:
-    with st.expander("Buồn bã, tuyệt vọng"):
-        st.write(":cry: " + Muc_do_cx["Buồn bã, tuyệt vọng"])
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (ten, str(datetime.now()), "Buồn bã, tuyệt vọng"))
-        conn.commit()
+        
+        # Gửi kết quả qua email
+        send_test_results(email, ten, responses)
+        
+        # Thông báo kết quả đã được gửi
+        st.success("Kết quả trắc nghiệm đã được gửi qua email!")
+    else:
+        st.error("Vui lòng nhập đầy đủ tên và email.")
 
 # Thanh bên hiển thị kết quả
 with st.sidebar:
     st.title("Kết quả trắc nghiệm")
-    if b1:
-        st.write(":smile: Bạn đã chọn: Rất tốt")
-    if b2:
-        st.write(":neutral_face: Bạn đã chọn: Bình thường")
-    if b3:
-        st.write(":worried: Bạn đã chọn: Căng thẳng nhẹ")
-    if b4:
-        st.write(":anguished: Bạn đã chọn: Căng thẳng nặng")
-    if b5:
-        st.write(":cry: Bạn đã chọn: Buồn bã, tuyệt vọng")
-
+    st.write("Kết quả của bạn đã được ghi lại và gửi qua email.")
     st.write("Nếu cần hỗ trợ, hãy liên hệ người thân hoặc chuyên gia tâm lý.")
-
-    # Lọc kết quả theo ngày
-    st.header("Lọc kết quả theo ngày")
-    start_date = st.date_input("Từ ngày")
-    end_date = st.date_input("Đến ngày")
-    if st.button("Lọc"):
-        c.execute("SELECT * FROM results WHERE date BETWEEN ? AND ?", (start_date, end_date))
-        filtered_results = c.fetchall()
-        for result in filtered_results:
-            st.write(result)
-
-    # Hiển thị đồ thị về tình trạng cảm xúc theo thời gian
-    st.header("Đồ thị tình trạng cảm xúc")
-    c.execute("SELECT date, level FROM results")
-    data = c.fetchall()
-    
-    if data:
-        # Lọc kết quả theo ngày đã chọn
-        if start_date and end_date:
-            data = [d for d in data if start_date <= datetime.strptime(d[0], "%Y-%m-%d %H:%M:%S.%f").date() <= end_date]
-        
-        # Đếm số lần mỗi mức độ cảm xúc xuất hiện
-        levels = [d[1] for d in data]
-        level_counts = Counter(levels)
-        
-        # Vẽ biểu đồ
-        fig, ax = plt.subplots()
-        ax.bar(level_counts.keys(), level_counts.values(), color="skyblue")
-        ax.set_title("Tình trạng cảm xúc theo thời gian")
-        ax.set_xlabel("Mức độ cảm xúc")
-        ax.set_ylabel("Số lần chọn")
-        st.pyplot(fig)
-    else:
-        st.write("Không có dữ liệu để hiển thị.")
-
-# Bản quyền
-st.write('[© Bản quyền thuộc về Ngvan](https://www.facebook.com/profile.php?id=100073017864297) <a href="https://www.facebook.com/profile.php?id=100073017864297" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" width="20"></a>', unsafe_allow_html=True)
