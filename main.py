@@ -83,14 +83,20 @@ with st.sidebar:
     dates = [datetime.strptime(d[0], '%Y-%m-%d %H:%M:%S.%f') for d in data]
     levels = [d[1] for d in data]
 
+    # Khởi tạo dictionary với các mức độ hợp lệ
     level_counts = {
         "Tốt": 0,
         "Căng thẳng": 0,
         "Cần sự hỗ trợ tâm lý": 0
     }
 
+    # Duyệt qua các giá trị level trong cơ sở dữ liệu
     for level in levels:
-        level_counts[level] += 1
+        if level in level_counts:
+            level_counts[level] += 1
+        else:
+            # Nếu level không có trong từ điển, bạn có thể ghi lại hoặc bỏ qua
+            st.warning(f"Giá trị '{level}' không hợp lệ và bị bỏ qua.")
 
     # Vẽ biểu đồ
     fig, ax = plt.subplots()
