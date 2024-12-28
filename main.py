@@ -2,8 +2,9 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import json  # Thêm thư viện JSON để chuyển đổi responses thành chuỗi JSON
 
 # Cấu hình trang
 st.set_page_config(page_title="Trắc nghiệm trầm cảm", page_icon=":thought_balloon:", layout="wide")
@@ -17,93 +18,67 @@ conn = sqlite3.connect('results.db')
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS results (name TEXT, date TEXT, level TEXT, email TEXT)''')
 
+# Nhập thông tin của người dùng
 ten = st.text_input("Họ và tên:")
-email = st.text_input("Email của bạn:")
-st.write("Xin chào,", ten)
+email = st.text_input("Email:")
 
-# Các mức độ cảm xúc
-Muc_do_cx = {
-    "Rất tốt": "Bạn đang có trạng thái tinh thần rất ổn định và tích cực. Hãy tiếp tục duy trì điều này!",
-    "Bình thường": "Bạn có một trạng thái tinh thần trung bình. Hãy chăm sóc bản thân và cân nhắc thư giãn thêm.",
-    "Căng thẳng nhẹ": "Bạn có dấu hiệu căng thẳng nhẹ. Thử nghỉ ngơi, tập thể dục hoặc trò chuyện với bạn bè.",
-    "Căng thẳng nặng": "Bạn có thể đang chịu áp lực lớn. Hãy tìm cách giảm bớt công việc và chăm sóc sức khỏe tinh thần.",
-    "Buồn bã, tuyệt vọng": "Bạn có dấu hiệu trầm cảm nghiêm trọng. Hãy tìm đến sự hỗ trợ từ người thân hoặc chuyên gia tâm lý.",
-    "Vui vẻ": "Bạn đang trong trạng thái rất vui vẻ và hạnh phúc!"
+# Các câu hỏi trắc nghiệm
+questions = {
+    "Bạn cảm thấy như thế nào trong tuần qua?": ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
+    "Bạn có cảm giác mệt mỏi trong công việc không?": ["Không", "Có chút mệt", "Mệt nhiều", "Cực kỳ mệt", "Không thể làm việc"],
+    "Bạn có cảm thấy lo âu không?": ["Không", "Có một chút lo lắng", "Lo lắng thường xuyên", "Lo âu mạnh mẽ", "Lo âu rất lớn"]
 }
 
-# Câu hỏi trắc nghiệm và các lựa chọn
-questions = [
-    "Trong tuần qua, bạn cảm thấy tinh thần của mình như thế nào?",
-    "Trong tuần qua, bạn có cảm thấy căng thẳng, mệt mỏi không?",
-    "Bạn có cảm thấy cuộc sống có ý nghĩa và mục đích không?",
-    "Bạn có dễ dàng cảm thấy hạnh phúc hoặc vui vẻ không?"
-]
+responses = []  # Dùng để lưu các câu trả lời của người dùng
 
-# Câu trả lời tương ứng với mỗi câu hỏi
-answers = [
-    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
-    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
-    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"],
-    ["Rất tốt", "Bình thường", "Căng thẳng nhẹ", "Căng thẳng nặng", "Buồn bã, tuyệt vọng"]
-]
+# Hiển thị câu hỏi trắc nghiệm
+for question, options in questions.items():
+    answer = st.radio(question, options)
+    responses.append(answer)
 
-# Hiển thị các câu hỏi và lựa chọn
-responses = []
-for idx, question in enumerate(questions):
-    response = st.radio(question, answers[idx])
-    responses.append(response)
+# Chức năng gửi kết quả qua email
+def send_test_results(email, name, responses):
+    sender_email = "nlkienvan123456789@gmail.com"  # Địa chỉ email của bạn
+    password = "Kv10072011"  # Mật khẩu email của bạn
+    receiver_email = email  # Địa chỉ email người nhận (người dùng nhập)
 
-# Hàm gửi email
-def send_email(recipient_email, subject, body):
-    sender_email = "your_email@gmail.com"  # Thay bằng email của bạn
-    sender_password = "your_app_password"  # Mật khẩu ứng dụng nếu có bật xác thực 2 bước
-    
-    # Cấu hình thư
+    # Soạn nội dung email
+    subject = "Kết quả trắc nghiệm trầm cảm"
+    body = f"Chào {name},\n\nDưới đây là kết quả trắc nghiệm trầm cảm của bạn:\n\n"
+    for i, response in enumerate(responses):
+        body += f"{list(questions.keys())[i]}: {response}\n"
+    body += "\nChúc bạn sức khỏe và tinh thần tốt!"
+
+    # Tạo MIME
     msg = MIMEMultipart()
     msg['From'] = sender_email
-    msg['To'] = recipient_email
+    msg['To'] = receiver_email
     msg['Subject'] = subject
-    
-    # Thêm nội dung email
     msg.attach(MIMEText(body, 'plain'))
-    
-    # Gửi email qua SMTP server của Gmail
+
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-        server.quit()
-        print("Email đã được gửi thành công!")
+        # Kết nối đến SMTP server và gửi email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        st.success("Kết quả trắc nghiệm đã được gửi qua email!")
     except Exception as e:
-        print(f"Lỗi khi gửi email: {e}")
+        st.error(f"Không thể gửi email. Lỗi: {str(e)}")
 
-# Gửi kết quả trắc nghiệm qua email
-def send_test_results(email, name, responses):
-    subject = f"Kết quả trắc nghiệm trầm cảm của {name}"
-    body = f"Chào {name},\n\nKết quả trắc nghiệm trầm cảm của bạn:\n"
-    for idx, response in enumerate(responses):
-        body += f"- Câu hỏi {idx+1}: {response}\n"
-    body += "\nCảm ơn bạn đã tham gia!"
-    send_email(email, subject, body)
-
-# Khi người dùng hoàn thành trắc nghiệm, hiển thị kết quả và gửi email
+# Gửi kết quả và lưu vào cơ sở dữ liệu
 if st.button("Gửi kết quả"):
     if ten and email:
+        # Chuyển đổi responses thành chuỗi JSON trước khi lưu vào cơ sở dữ liệu
+        responses_json = json.dumps(responses)
+        
         # Lưu kết quả vào cơ sở dữ liệu
-        c.execute("INSERT INTO results (name, date, level, email) VALUES (?, ?, ?, ?)", (ten, str(datetime.now()), str(responses), email))
+        c.execute("INSERT INTO results (name, date, level, email) VALUES (?, ?, ?, ?)", (ten, str(datetime.now()), responses_json, email))
         conn.commit()
         
         # Gửi kết quả qua email
         send_test_results(email, ten, responses)
-        
-        # Thông báo kết quả đã được gửi
-        st.success("Kết quả trắc nghiệm đã được gửi qua email!")
     else:
         st.error("Vui lòng nhập đầy đủ tên và email.")
 
-# Thanh bên hiển thị kết quả
-with st.sidebar:
-    st.title("Kết quả trắc nghiệm")
-    st.write("Kết quả của bạn đã được ghi lại và gửi qua email.")
-    st.write("Nếu cần hỗ trợ, hãy liên hệ người thân hoặc chuyên gia tâm lý.")
+# Hiển thị kết quả đã gửi
+st.write("Kết quả của bạn sẽ được hiển thị ở đây sau khi gửi.")
