@@ -88,34 +88,40 @@ if submit_button:
     # Gửi email hỗ trợ
     email_button = st.button("Gửi kết quả qua email")
     if email_button:
-        send_email(name, level, message, receiver_email)
+        email_sent = send_email(name, level, message, receiver_email)
+        if email_sent:
+            st.success("Kết quả đã được gửi qua email!")
+        else:
+            st.error("Đã xảy ra lỗi khi gửi email. Vui lòng thử lại sau.")
 
-    # Cập nhật biểu đồ tình trạng cảm xúc
-    st.header("Đồ thị tình trạng cảm xúc")
-    c.execute("SELECT date, level FROM results")
-    data = c.fetchall()
-    dates = [datetime.strptime(d[0], '%Y-%m-%d %H:%M:%S.%f') for d in data]
-    levels = [d[1] for d in data]
+    # Cập nhật biểu đồ tình trạng cảm xúc trong sidebar
+    with st.sidebar:
+        st.header("Đồ thị tình trạng cảm xúc")
+        # Lọc kết quả theo ngày
+        start_date = st.date_input("Từ ngày")
+        end_date = st.date_input("Đến ngày")
+        if st.button("Lọc"):
+            c.execute("SELECT date, level FROM results WHERE date BETWEEN ? AND ?", (start_date, end_date))
+            data = c.fetchall()
 
-    # Khởi tạo dictionary với các mức độ hợp lệ
-    level_counts = {
-        "Tốt": 0,
-        "Căng thẳng": 0,
-        "Cần sự hỗ trợ tâm lý": 0
-    }
+            # Khởi tạo dictionary với các mức độ hợp lệ
+            level_counts = {
+                "Tốt": 0,
+                "Căng thẳng": 0,
+                "Cần sự hỗ trợ tâm lý": 0
+            }
 
-    # Duyệt qua các giá trị level trong cơ sở dữ liệu
-    for level in levels:
-        if level in level_counts:
-            level_counts[level] += 1
+            # Duyệt qua các giá trị level trong cơ sở dữ liệu
+            for d in data:
+                level_counts[d[1]] += 1
 
-    # Vẽ biểu đồ
-    fig, ax = plt.subplots()
-    ax.bar(level_counts.keys(), level_counts.values(), color="skyblue")
-    ax.set_title("Tình trạng cảm xúc của những người tham gia")
-    ax.set_xlabel("Mức độ cảm xúc")
-    ax.set_ylabel("Số lần chọn")
-    st.pyplot(fig)
+            # Vẽ biểu đồ
+            fig, ax = plt.subplots()
+            ax.bar(level_counts.keys(), level_counts.values(), color="skyblue")
+            ax.set_title("Tình trạng cảm xúc của những người tham gia")
+            ax.set_xlabel("Mức độ cảm xúc")
+            ax.set_ylabel("Số lần chọn")
+            st.pyplot(fig)
 
 # Thanh bên hiển thị kết quả
 with st.sidebar:
@@ -123,16 +129,6 @@ with st.sidebar:
     if name:
         st.write(f"Kết quả của {name}: {level}")
     st.write("Nếu cần hỗ trợ, hãy liên hệ người thân hoặc chuyên gia tâm lý.")
-
-    # Lọc kết quả theo ngày
-    st.header("Lọc kết quả theo ngày")
-    start_date = st.date_input("Từ ngày")
-    end_date = st.date_input("Đến ngày")
-    if st.button("Lọc"):
-        c.execute("SELECT * FROM results WHERE date BETWEEN ? AND ?", (start_date, end_date))
-        filtered_results = c.fetchall()
-        for result in filtered_results:
-            st.write(result)
 
 # Bản quyền
 st.write('[© 2024 - Bản quyền thuộc về Ngvan](https://www.facebook.com/profile.php?id=100073017864297) <a href="https://www.facebook.com/profile.php?id=100073017864297" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" width="20"></a>', unsafe_allow_html=True)
@@ -168,6 +164,6 @@ def send_email(name, level, message, receiver_email):
             server.login(sender_email, password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
         
-        st.success("Kết quả đã được gửi qua email!")
+        return True  # Trả về True nếu email gửi thành công
     except Exception as e:
-        st.error(f"Đã xảy ra lỗi khi gửi email: {e}")
+        return False  # Trả về False nếu có lỗi xảy ra
