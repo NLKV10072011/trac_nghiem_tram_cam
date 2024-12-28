@@ -2,6 +2,8 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import matplotlib.pyplot as plt
+import smtplib
+from email.mime.text import MIMEText
 
 # Cấu hình trang
 st.set_page_config(page_title="Trắc nghiệm Trầm cảm", page_icon=":thought_balloon:", layout="wide")
@@ -26,6 +28,8 @@ questions = [
     ("Bạn có gặp khó khăn trong việc tập trung vào công việc hoặc các hoạt động khác?", ["Không", "Thỉnh thoảng", "Có"]),
     ("Bạn có gặp khó khăn trong việc ngủ hoặc ngủ quá nhiều?", ["Không", "Thỉnh thoảng", "Có"]),
     ("Bạn có cảm thấy mình vô dụng hoặc cảm thấy tội lỗi không giải thích được?", ["Không", "Thỉnh thoảng", "Có"]),
+    ("Bạn có cảm thấy lo âu hoặc khó kiểm soát cảm xúc của mình?", ["Không", "Thỉnh thoảng", "Có"]),
+    ("Bạn có cảm thấy cô đơn và thiếu sự kết nối với người khác?", ["Không", "Thỉnh thoảng", "Có"]),
 ]
 
 # Tạo giao diện cho các câu hỏi
@@ -42,28 +46,35 @@ def evaluate_responses(responses):
             score += 2
         elif response == "Thỉnh thoảng":
             score += 1
-    if score >= 10:
+    if score >= 16:
         return "Cần sự hỗ trợ tâm lý", "Bạn có dấu hiệu trầm cảm nghiêm trọng. Hãy tìm đến sự hỗ trợ từ người thân hoặc chuyên gia tâm lý."
-    elif score >= 6:
+    elif score >= 10:
         return "Căng thẳng", "Bạn có dấu hiệu căng thẳng và cần chú ý đến sức khỏe tinh thần của mình."
     else:
         return "Tốt", "Bạn đang có trạng thái tinh thần ổn định. Tuy nhiên, hãy theo dõi và chăm sóc bản thân."
 
 level, message = evaluate_responses(responses)
 
+# Phần nhập email nhận kết quả
+receiver_email = st.text_input("Nhập email nhận kết quả:")
+
 # Thêm nút "Nộp bài"
 submit_button = st.button("Nộp bài")
 
 if submit_button:
     if name:
-        # Lưu kết quả vào cơ sở dữ liệu
-        c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (name, str(datetime.now()), level))
-        conn.commit()
+        # Lưu kết quả vào cơ sở dữ liệu, đảm bảo giá trị "level" hợp lệ
+        if level in ["Tốt", "Căng thẳng", "Cần sự hỗ trợ tâm lý"]:
+            c.execute("INSERT INTO results (name, date, level) VALUES (?, ?, ?)", (name, str(datetime.now()), level))
+            conn.commit()
+        else:
+            st.error("Giá trị cảm xúc không hợp lệ. Vui lòng thử lại.")
+            st.stop()  # Dừng lại nếu giá trị không hợp lệ
 
     # Hiển thị kết quả
     st.subheader(f"Tình trạng của {name}: {level}")
     st.write(message)
-    
+
     # Hiển thị phần hỗ trợ tâm lý
     st.sidebar.title("Hỗ trợ và lời khuyên")
     if level == "Cần sự hỗ trợ tâm lý":
@@ -73,7 +84,12 @@ if submit_button:
         st.sidebar.write("Ngoài ra, bạn có thể tham gia các buổi thiền hoặc thở sâu để giảm căng thẳng:")
         st.sidebar.write("1. Bài tập thở 4-7-8: Hít vào 4 giây, giữ 7 giây, thở ra 8 giây.")
         st.sidebar.write("2. Thiền mindfulness: Hãy tập trung vào hơi thở và để tâm trí tĩnh lặng.")
-        
+
+    # Gửi email hỗ trợ
+    email_button = st.button("Gửi kết quả qua email")
+    if email_button:
+        send_email(name, level, message, receiver_email)
+
     # Cập nhật biểu đồ tình trạng cảm xúc
     st.header("Đồ thị tình trạng cảm xúc")
     c.execute("SELECT date, level FROM results")
@@ -92,9 +108,6 @@ if submit_button:
     for level in levels:
         if level in level_counts:
             level_counts[level] += 1
-        else:
-            # Nếu level không có trong từ điển, bạn có thể ghi lại hoặc bỏ qua
-            st.warning(f"Giá trị '{level}' không hợp lệ và bị bỏ qua.")
 
     # Vẽ biểu đồ
     fig, ax = plt.subplots()
@@ -123,3 +136,38 @@ with st.sidebar:
 
 # Bản quyền
 st.write('[© 2024 - Bản quyền thuộc về Ngvan](https://www.facebook.com/profile.php?id=100073017864297) <a href="https://www.facebook.com/profile.php?id=100073017864297" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg" width="20"></a>', unsafe_allow_html=True)
+
+# Hàm gửi email
+def send_email(name, level, message, receiver_email):
+    try:
+        # Cấu hình thông tin email
+        sender_email = "nlkienvan123456789@gmail.com"  # Địa chỉ email người gửi
+        password = "Kv10072011"  # Mật khẩu tài khoản email người gửi
+        subject = f"Kết quả trắc nghiệm trầm cảm của {name}"
+
+        body = f"""
+        Chào bạn,
+        
+        Kết quả trắc nghiệm trầm cảm của {name}:
+        - Tình trạng: {level}
+        - Thông điệp: {message}
+        
+        Nếu bạn cần sự hỗ trợ, hãy liên hệ với chuyên gia tâm lý hoặc người thân.
+
+        Thân ái,
+        Trắc nghiệm sức khỏe tinh thần.
+        """
+
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = receiver_email
+
+        # Kết nối tới máy chủ Gmail
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        
+        st.success("Kết quả đã được gửi qua email!")
+    except Exception as e:
+        st.error(f"Đã xảy ra lỗi khi gửi email: {e}")
